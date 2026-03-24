@@ -1,6 +1,7 @@
 # Safe Path 🌿 — Breathe Easy, Move Smart
 
-![Safe Path Concept](./safe_path_concept.png)
+<img width="640" height="640" alt="safe_path_concept" src="https://github.com/user-attachments/assets/0cbf7b8a-bdab-4d26-be7a-3451e5255e21" />
+
 
 Safe Path is a web application for pedestrians and cyclists that helps find the cleanest air route between two points. By analyzing real-time PM2.5 concentrations, it routes you through parks and residential areas, avoiding high-pollution highways and busy roads.
 
