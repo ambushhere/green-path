@@ -1,73 +1,32 @@
-# React + TypeScript + Vite
+# Safe Path 🌿 — Breathe Easy, Move Smart
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![Safe Path Concept](./safe_path_concept.png)
 
-Currently, two official plugins are available:
+Safe Path is a web application for pedestrians and cyclists that helps find the cleanest air route between two points. By analyzing real-time PM2.5 concentrations, it routes you through parks and residential areas, avoiding high-pollution highways and busy roads.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Key Features
 
-## React Compiler
+- **Dual API Integration**: Combines data from WAQI (aqicn.org) and OpenAQ.org for the most comprehensive air quality coverage.
+- **Intelligent Routing**: Uses a custom steering algorithm to nudge routes toward low-pollution zones.
+- **Route Comparison**: Visual side-by-side comparison of standard vs. clean routes, including an "AQI Exposure Score" and calculated savings.
+- **Travel Modes**: Specialized routing profiles for both walking and cycling.
+- **Premium UI**: Modern dark theme with a glassmorphism design for a professional and sleek look.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- **Mapping**: Leaflet.js + OpenStreetMap.
+- **Routing**: OSRM (Open Source Routing Machine).
+- **Geocoding**: Nominatim (OpenStreetMap).
+- **Air Quality**: WAQI API & OpenAQ API.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## How to Run
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Due to browser security policies (CORS), the application must be served through a local web server (cannot be opened directly as a `file://`):
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+1. **Using Python**: Run `python -m http.server 8000` in the project directory.
+2. **Using VS Code**: Use the "Live Server" extension.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Once running, access the app at `http://localhost:8000`.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
+*Created with care for people with allergies, asthma, and parents with strollers.*
