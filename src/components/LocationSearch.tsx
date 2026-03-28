@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, MapPin, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { SearchLocation } from '@/types';
 import { searchLocation } from '@/services/geocoding';
-import { debounce } from '@/lib/utils';
 
 interface LocationSearchProps {
   label: string;
@@ -12,6 +11,7 @@ interface LocationSearchProps {
   onChange: (value: string) => void;
   onSelect: (location: SearchLocation) => void;
   icon?: React.ReactNode;
+  onError?: (message: string | null) => void;
 }
 
 export const LocationSearch = ({
@@ -20,26 +20,49 @@ export const LocationSearch = ({
   value,
   onChange,
   onSelect,
-  icon
+  icon,
+  onError,
 }: LocationSearchProps) => {
   const [suggestions, setSuggestions] = useState<SearchLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const debouncedSearch = useCallback(
-    debounce(async (query: string) => {
-      if (query.length < 3) {
-        setSuggestions([]);
-        setIsLoading(false);
-        return;
+  const debouncedSearch = useMemo(() => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    return (query: string) => {
+      if (timeout) {
+        clearTimeout(timeout);
       }
 
-      const results = await searchLocation(query);
-      setSuggestions(results);
-      setIsLoading(false);
-    }, 500),
-    []
-  );
+      timeout = setTimeout(async () => {
+        if (query.length < 3) {
+          setSuggestions([]);
+          setIsLoading(false);
+          setErrorMessage(null);
+          onError?.(null);
+          return;
+        }
+
+        try {
+          const results = await searchLocation(query);
+          setSuggestions(results);
+          setErrorMessage(null);
+          onError?.(null);
+        } catch (error) {
+          const message = error instanceof Error
+            ? error.message
+            : 'Could not load location suggestions right now.';
+          setSuggestions([]);
+          setErrorMessage(message);
+          onError?.(message);
+        } finally {
+          setIsLoading(false);
+        }
+      }, 500);
+    };
+  }, [onError]);
 
   useEffect(() => {
     if (value.length >= 3) {
@@ -47,20 +70,26 @@ export const LocationSearch = ({
       debouncedSearch(value);
     } else {
       setSuggestions([]);
+      setErrorMessage(null);
+      onError?.(null);
     }
-  }, [value, debouncedSearch]);
+  }, [value, debouncedSearch, onError]);
 
   const handleSelect = (location: SearchLocation) => {
     onChange(location.name);
     onSelect(location);
     setShowSuggestions(false);
     setSuggestions([]);
+    setErrorMessage(null);
+    onError?.(null);
   };
 
   const handleClear = () => {
     onChange('');
     setSuggestions([]);
     setShowSuggestions(false);
+    setErrorMessage(null);
+    onError?.(null);
   };
 
   return (
@@ -94,11 +123,15 @@ export const LocationSearch = ({
       </div>
 
       {/* Suggestions dropdown */}
-      {showSuggestions && (suggestions.length > 0 || isLoading) && (
+      {showSuggestions && (suggestions.length > 0 || isLoading || errorMessage) && (
         <div className="absolute z-50 w-full mt-1 bg-white rounded-md shadow-lg border border-gray-200 max-h-60 overflow-auto">
           {isLoading ? (
             <div className="px-4 py-3 text-sm text-gray-500">
               Searching...
+            </div>
+          ) : errorMessage ? (
+            <div className="px-4 py-3 text-sm text-red-600">
+              {errorMessage}
             </div>
           ) : (
             suggestions.map((location, index) => (
