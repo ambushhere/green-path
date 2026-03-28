@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { AirQualityData } from '@/types';
 import { getAirQuality, getAirQualityLevel } from '@/services/airQuality';
-import { Wind, Droplets, Sun, AlertCircle, RefreshCw } from 'lucide-react';
+import { Wind, Droplets, Sun, AlertCircle, RefreshCw, TriangleAlert, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface AirQualityPanelProps {
   location: { lat: number; lng: number } | null;
@@ -14,7 +15,7 @@ export const AirQualityPanel = ({ location }: AirQualityPanelProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchAirQuality = async () => {
+  const fetchAirQuality = useCallback(async () => {
     if (!location) return;
     
     setIsLoading(true);
@@ -27,11 +28,11 @@ export const AirQualityPanel = ({ location }: AirQualityPanelProps) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [location]);
 
   useEffect(() => {
     fetchAirQuality();
-  }, [location]);
+  }, [fetchAirQuality]);
 
   if (!location) {
     return (
@@ -91,7 +92,22 @@ export const AirQualityPanel = ({ location }: AirQualityPanelProps) => {
         >
           {level}
         </Badge>
+
+        <div className="mt-2 flex justify-center">
+          <Badge variant="outline" className="text-xs flex items-center gap-1">
+            <Radio size={12} />
+            Data source: {airQuality.source}
+          </Badge>
+        </div>
       </div>
+
+      {airQuality.warning && (
+        <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
+          <TriangleAlert size={16} />
+          <AlertTitle>Estimated data</AlertTitle>
+          <AlertDescription>{airQuality.warning}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Detailed metrics */}
       <div className="space-y-3">

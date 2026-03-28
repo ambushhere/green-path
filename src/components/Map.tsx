@@ -8,7 +8,7 @@ import { getAirQualityLevel } from '@/services/airQuality';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
+const DefaultIcon = L.icon({
   iconUrl: icon,
   shadowUrl: iconShadow,
   iconSize: [25, 41],
@@ -50,7 +50,7 @@ export const Map = ({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = L.map(containerRef.current).setView([center.lat, center.lng], zoom);
+    const map = L.map(containerRef.current).setView([55.7558, 37.6173], 13);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
@@ -164,19 +164,31 @@ export const Map = ({
       const isSelected = index === selectedRouteIndex;
       const points = route.points.map(p => [p.lat, p.lng] as L.LatLngExpression);
       
-      // Route color based on safety
-      let color = '#22c55e'; // safe - green
-      if (route.safety === 'moderate') color = '#eab308'; // yellow
+      // High-contrast route colors based on safety
+      let color = '#10b981'; // safe - emerald
+      if (route.safety === 'moderate') color = '#f59e0b'; // amber
       if (route.safety === 'unsafe') color = '#ef4444'; // red
       
       // Dim non-selected routes
-      const opacity = isSelected ? 1 : 0.3;
-      const weight = isSelected ? 5 : 3;
+      const opacity = isSelected ? 0.98 : 0.45;
+      const weight = isSelected ? 6 : 4;
+
+      // Draw a dark casing first so the route stays visible on any tile background
+      L.polyline(points, {
+        color: '#111827',
+        weight: weight + 4,
+        opacity: isSelected ? 0.85 : 0.35,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dashArray: isSelected ? undefined : '6, 10'
+      }).addTo(routesRef.current!);
 
       const polyline = L.polyline(points, {
         color,
         weight,
         opacity,
+        lineCap: 'round',
+        lineJoin: 'round',
         dashArray: isSelected ? undefined : '5, 10'
       }).addTo(routesRef.current!);
 

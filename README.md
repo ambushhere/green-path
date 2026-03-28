@@ -53,6 +53,40 @@ This lets you test the production build locally before deployment.
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
 - `npm run lint` - Check code quality with ESLint
+- `npm run test` - Run unit tests with Vitest
+- `npm run proxy` - Run local API proxy server on port 8787
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and set values as needed.
+
+### Frontend variables
+
+- `VITE_API_PROXY_BASE_URL` - Optional proxy base URL (example: `http://localhost:8787`)
+- `VITE_ROUTING_API_BASE_URL` - Optional direct routing API override
+- `VITE_GEOCODING_API_BASE_URL` - Optional direct geocoding API override
+- `VITE_AIR_QUALITY_API_BASE_URL` - Optional direct air quality API override
+- `VITE_WAQI_API_BASE_URL` - Optional WAQI base override
+- `VITE_WAQI_TOKEN` - Optional WAQI token for direct browser calls
+- `VITE_GEOCODING_LANGUAGE` - Preferred geocoding language (default `en`)
+
+### Proxy variables
+
+See `proxy/README.md` for proxy-side environment variables like `WAQI_TOKEN`.
+
+## Local Proxy Quick Start
+
+```bash
+npm run proxy
+```
+
+Then set:
+
+```bash
+VITE_API_PROXY_BASE_URL=http://localhost:8787
+```
+
+Detailed proxy docs: `proxy/README.md`
 
 ## Tech Stack
 

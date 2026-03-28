@@ -1,7 +1,7 @@
 import type { Route, TravelMode } from '@/types';
 import { formatDistance, formatDuration } from '@/services/routing';
 import { getAirQualityLevel } from '@/services/airQuality';
-import { Wind, Clock, Navigation, Shield, Leaf, Bike, Footprints } from 'lucide-react';
+import { Wind, Clock, Navigation, Shield, Leaf, Bike, Footprints, Sparkles, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface RouteInfoProps {
@@ -21,7 +21,7 @@ export const RouteInfo = ({
   onTravelModeChange,
   isLoading = false
 }: RouteInfoProps) => {
-  if (isLoading) {
+  if (isLoading && routes.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-center py-8">
@@ -43,12 +43,37 @@ export const RouteInfo = ({
     );
   }
 
+  const getRouteMeta = (routeType: Route['type']) => {
+    if (routeType === 'direct') {
+      return {
+        label: 'Direct',
+        icon: <Navigation size={16} />,
+        note: 'Fastest path',
+      };
+    }
+
+    if (routeType === 'green') {
+      return {
+        label: 'Green',
+        icon: <Leaf size={16} />,
+        note: 'Balanced low pollution',
+      };
+    }
+
+    return {
+      label: 'Scenic',
+      icon: <Sparkles size={16} />,
+      note: 'Cleaner with light detour',
+    };
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
       {/* Travel mode selector */}
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => onTravelModeChange('foot')}
+          disabled={isLoading}
           className={`flex-1 py-3 px-4 flex items-center justify-center gap-2 transition-colors ${
             travelMode === 'foot'
               ? 'bg-green-50 text-green-700 border-b-2 border-green-600'
@@ -60,6 +85,7 @@ export const RouteInfo = ({
         </button>
         <button
           onClick={() => onTravelModeChange('bike')}
+          disabled={isLoading}
           className={`flex-1 py-3 px-4 flex items-center justify-center gap-2 transition-colors ${
             travelMode === 'bike'
               ? 'bg-green-50 text-green-700 border-b-2 border-green-600'
@@ -71,21 +97,19 @@ export const RouteInfo = ({
         </button>
       </div>
 
+      {isLoading && (
+        <div className="px-4 py-2 border-b border-gray-100 text-xs text-gray-500 flex items-center gap-2">
+          <Loader2 size={13} className="animate-spin" />
+          Updating routes for {travelMode === 'bike' ? 'bicycle' : 'walking'} mode...
+        </div>
+      )}
+
       {/* Route cards */}
       <div className="p-4 space-y-3">
         {routes.map((route, index) => {
           const { level, color } = getAirQualityLevel(route.avgPM25);
           const isSelected = index === selectedIndex;
-          
-          let routeLabel = 'Direct';
-          let routeIcon = <Navigation size={16} />;
-          if (index === 1) {
-            routeLabel = 'Green';
-            routeIcon = <Leaf size={16} />;
-          } else if (index === 2) {
-            routeLabel = 'Cleanest';
-            routeIcon = <Shield size={16} />;
-          }
+          const routeMeta = getRouteMeta(route.type);
 
           return (
             <button
@@ -100,10 +124,10 @@ export const RouteInfo = ({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className={`${isSelected ? 'text-green-700' : 'text-gray-600'}`}>
-                    {routeIcon}
+                    {routeMeta.icon}
                   </span>
                   <span className={`font-semibold ${isSelected ? 'text-green-800' : 'text-gray-800'}`}>
-                    {routeLabel}
+                    {routeMeta.label}
                   </span>
                   {isSelected && (
                     <Badge variant="default" className="bg-green-600">
@@ -111,6 +135,7 @@ export const RouteInfo = ({
                     </Badge>
                   )}
                 </div>
+                <div className="text-xs text-gray-500 mr-2">{routeMeta.note}</div>
                 <div 
                   className="px-2 py-1 rounded text-xs font-medium"
                   style={{ 
@@ -152,6 +177,15 @@ export const RouteInfo = ({
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">
+                  Health score: {route.score}/100
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  AQ source: {route.airQualitySource}
+                </Badge>
               </div>
 
               {/* Health tip */}
