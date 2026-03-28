@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Menu, X } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from 'sonner';
 import { Map } from '@/components/Map';
-import { RouteInfo } from '@/components/RouteInfo';
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
 import { useRoutePlanner } from '@/hooks/useRoutePlanner';
@@ -55,6 +54,7 @@ function PlannerSidebar(props: {
 function App() {
   const [showAirQuality, setShowAirQuality] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(true);
 
   const {
     startPoint,
@@ -161,20 +161,63 @@ function App() {
               airQualityData={allAirQualityData}
             />
 
-            {routes.length > 0 && (
-              <div className="lg:hidden absolute bottom-4 left-4 right-4 z-[400]">
-                <div className="bg-white rounded-lg shadow-lg p-4 max-h-56 overflow-y-auto">
-                  <RouteInfo
-                    routes={routes}
-                    selectedIndex={selectedRouteIndex}
-                    onSelectRoute={setSelectedRouteIndex}
-                    travelMode={travelMode}
-                    onTravelModeChange={handleTravelModeChange}
-                    isLoading={isCalculating}
-                  />
+            {/* Mobile bottom sheet – always visible, collapses/expands */}
+            <div className="lg:hidden absolute bottom-0 left-0 right-0 z-[400]">
+              <div className="bg-white rounded-t-2xl shadow-lg border-t border-gray-100">
+                {/* Drag-handle indicator */}
+                <div className="flex justify-center pt-2 pb-0">
+                  <div className="w-8 h-1 bg-gray-300 rounded-full" />
                 </div>
+
+                {/* Toggle bar */}
+                <button
+                  onClick={() => setIsMobilePanelOpen((v) => !v)}
+                  aria-expanded={isMobilePanelOpen}
+                  aria-label={isMobilePanelOpen ? 'Collapse route planning panel' : 'Expand route planning panel'}
+                  className="w-full px-4 py-2 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2 text-gray-800">
+                    <MapPin size={16} className="text-green-600" />
+                    <span className="font-medium text-sm">
+                      {routes.length > 0
+                        ? `${routes.length} route${routes.length > 1 ? 's' : ''} found`
+                        : startPoint && endPoint
+                          ? 'Ready to calculate'
+                          : 'Plan your route'}
+                    </span>
+                  </div>
+                  {isMobilePanelOpen
+                    ? <ChevronDown size={18} className="text-gray-500" aria-label="Collapse" />
+                    : <ChevronUp size={18} className="text-gray-500" aria-label="Expand" />}
+                </button>
+
+                {/* Collapsible body */}
+                {isMobilePanelOpen && (
+                  <div className="overflow-y-auto max-h-[60vh] border-t border-gray-100">
+                    <PlannerSidebar
+                      startAddress={startAddress}
+                      endAddress={endAddress}
+                      startPoint={startPoint}
+                      endPoint={endPoint}
+                      routes={routes}
+                      selectedRouteIndex={selectedRouteIndex}
+                      travelMode={travelMode}
+                      isCalculating={isCalculating}
+                      routeError={routeError}
+                      onStartAddressChange={setStartAddress}
+                      onEndAddressChange={setEndAddress}
+                      onStartSelect={handleStartSelect}
+                      onEndSelect={handleEndSelect}
+                      onCalculateRoutes={calculateRoutes}
+                      onClearRoute={clearRoute}
+                      onSwapPoints={swapPoints}
+                      onSelectRoute={setSelectedRouteIndex}
+                      onTravelModeChange={handleTravelModeChange}
+                    />
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </main>
         </div>
       </div>
