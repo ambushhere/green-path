@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { LocationSearch } from '@/components/LocationSearch';
 import { RouteInfo } from '@/components/RouteInfo';
 import { AirQualityPanel } from '@/components/AirQualityPanel';
+import { ShareRouteMenu } from '@/components/ShareRouteMenu';
 import type { LatLng, Route, SearchLocation, TravelMode } from '@/types';
 
 interface SidebarProps {
@@ -137,6 +138,17 @@ export const Sidebar = ({
         onTravelModeChange={onTravelModeChange}
         isLoading={isCalculating}
       />
+
+      {routes.length > 0 && startPoint && endPoint && (
+        <ShareRouteMenu
+          startPoint={startPoint}
+          endPoint={endPoint}
+          startAddress={startAddress}
+          endAddress={endAddress}
+          selectedRoute={routes[selectedRouteIndex]}
+          travelMode={travelMode}
+        />
+      )}
 
       <AirQualityPanel location={startPoint || endPoint} />
 
