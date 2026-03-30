@@ -82,7 +82,7 @@ function App() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-gray-50">
+      <div className="h-dvh flex flex-col bg-gray-50">
         <Toaster position="top-center" />
 
         <TopBar
@@ -163,7 +163,7 @@ function App() {
 
             {/* Mobile bottom sheet – always visible, collapses/expands */}
             <div className="lg:hidden absolute bottom-0 left-0 right-0 z-[400]">
-              <div className="bg-white rounded-t-2xl shadow-lg border-t border-gray-100">
+              <div className="bg-white rounded-t-2xl shadow-lg border-t border-gray-100 safe-area-bottom">
                 {/* Drag-handle indicator */}
                 <div className="flex justify-center pt-2 pb-0">
                   <div className="w-8 h-1 bg-gray-300 rounded-full" />
