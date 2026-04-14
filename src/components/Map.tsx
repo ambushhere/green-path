@@ -242,6 +242,8 @@ export const Map = ({
   return (
     <div 
       ref={containerRef} 
+      role="application"
+      aria-label="Route planning map"
       className="w-full h-full rounded-lg overflow-hidden"
       style={{ minHeight: '400px' }}
     />

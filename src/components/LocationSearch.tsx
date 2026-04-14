@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, MapPin, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { SearchLocation } from '@/types';
@@ -28,41 +28,52 @@ export const LocationSearch = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const debouncedSearch = useMemo(() => {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
+  // Keep a stable ref to the latest onError so the debounced callback never goes stale.
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
-    return (query: string) => {
-      if (timeout) {
-        clearTimeout(timeout);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedSearch = useCallback((query: string) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(async () => {
+      if (query.length < 3) {
+        setSuggestions([]);
+        setIsLoading(false);
+        setErrorMessage(null);
+        onErrorRef.current?.(null);
+        return;
       }
 
-      timeout = setTimeout(async () => {
-        if (query.length < 3) {
-          setSuggestions([]);
-          setIsLoading(false);
-          setErrorMessage(null);
-          onError?.(null);
-          return;
-        }
+      try {
+        const results = await searchLocation(query);
+        setSuggestions(results);
+        setErrorMessage(null);
+        onErrorRef.current?.(null);
+      } catch (error) {
+        const message = error instanceof Error
+          ? error.message
+          : 'Could not load location suggestions right now.';
+        setSuggestions([]);
+        setErrorMessage(message);
+        onErrorRef.current?.(message);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 500);
+  }, []);
 
-        try {
-          const results = await searchLocation(query);
-          setSuggestions(results);
-          setErrorMessage(null);
-          onError?.(null);
-        } catch (error) {
-          const message = error instanceof Error
-            ? error.message
-            : 'Could not load location suggestions right now.';
-          setSuggestions([]);
-          setErrorMessage(message);
-          onError?.(message);
-        } finally {
-          setIsLoading(false);
-        }
-      }, 500);
+  // Cancel pending search on unmount.
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [onError]);
+  }, []);
 
   useEffect(() => {
     if (value.length >= 3) {

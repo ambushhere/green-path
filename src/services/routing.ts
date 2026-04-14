@@ -38,7 +38,62 @@ export type ScoredRouteCandidate = {
 };
 
 const ROUTE_CACHE_TTL_MS = 3 * 60 * 1000;
+const ROUTE_CACHE_MAX_SIZE = 50;
 const routeCache = new Map<string, { expiresAt: number; data: Route[] }>();
+
+// ---------------------------------------------------------------------------
+// Routing algorithm constants
+// ---------------------------------------------------------------------------
+
+// Fraction along the start→end vector where the two corridor waypoints are placed.
+const CORRIDOR_FIRST_FRACTION = 0.28;
+const CORRIDOR_SECOND_FRACTION = 0.72;
+
+// Corridor jitter/bend multipliers control how much randomness is added to waypoints.
+const JITTER_STRENGTH = 0.25;
+const BEND_STRENGTH = 0.2;
+
+// Health-score penalty weights
+const PM25_PENALTY_MAX = 75;    // cap on the PM2.5 penalty contribution
+const PM25_PENALTY_FACTOR = 0.8; // µg/m³ → penalty points
+const DISTANCE_PENALTY_FACTOR = 15; // per unit of distance normalisation above 1.0
+const DURATION_PENALTY_FACTOR = 10; // per unit of duration normalisation above 1.0
+
+// Ranking weights for the "direct" route type (sum to 1.0 per mode)
+const DIRECT_FOOT_DISTANCE_W = 0.42;
+const DIRECT_FOOT_DURATION_W = 0.23;
+const DIRECT_FOOT_PM_W = 0.35;
+
+const DIRECT_BIKE_DISTANCE_W = 0.62;
+const DIRECT_BIKE_DURATION_W = 0.28;
+const DIRECT_BIKE_PM_W = 0.1;
+
+// Ranking weights for the "green" (low-pollution) route type
+const GREEN_FOOT_PM_W = 0.72;
+const GREEN_FOOT_DISTANCE_W = 0.14;
+const GREEN_FOOT_DURATION_W = 0.14;
+
+const GREEN_BIKE_PM_W = 0.5;
+const GREEN_BIKE_DISTANCE_W = 0.3;
+const GREEN_BIKE_DURATION_W = 0.2;
+
+// Ranking weights for the "scenic" (slight detour + clean air) route type
+// Target detour factor: how far above the shortest route the scenic route aims to be.
+const SCENIC_FOOT_DETOUR_TARGET = 1.15;
+const SCENIC_BIKE_DETOUR_TARGET = 1.05;
+
+const SCENIC_FOOT_PM_W = 0.58;
+const SCENIC_FOOT_DETOUR_W = 0.27;
+const SCENIC_FOOT_CORRIDOR_W = 0.15;
+
+const SCENIC_BIKE_PM_W = 0.45;
+const SCENIC_BIKE_DETOUR_W = 0.42;
+const SCENIC_BIKE_CORRIDOR_W = 0.13;
+
+// Corridor score bounds: prefers routes with moderate perpendicular offset.
+const CORRIDOR_SCORE_MIN = 0.9;
+const CORRIDOR_SCORE_BASE = 1.15;
+const CORRIDOR_SCORE_BIAS = 0.2;
 
 const pseudoRandom = (seed: number): number => {
   const x = Math.sin(seed * 12.9898) * 43758.5453;
@@ -69,6 +124,10 @@ const getCachedRoutes = (cacheKey: string): Route[] | null => {
 };
 
 const cacheRoutes = (cacheKey: string, routes: Route[]) => {
+  if (routeCache.size >= ROUTE_CACHE_MAX_SIZE) {
+    const oldestKey = routeCache.keys().next().value;
+    if (oldestKey !== undefined) routeCache.delete(oldestKey);
+  }
   routeCache.set(cacheKey, {
     data: routes,
     expiresAt: Date.now() + ROUTE_CACHE_TTL_MS,
@@ -93,9 +152,6 @@ const generateCandidateCorridors = (start: LatLng, end: LatLng, travelMode: Trav
     : [-1.3, -0.65, 0, 0.65, 1.3];
 
   return corridors.map((corridor, index) => {
-    const firstFraction = 0.28;
-    const secondFraction = 0.72;
-
     const seed =
       start.lat * 100
       + start.lng * 100
@@ -104,19 +160,19 @@ const generateCandidateCorridors = (start: LatLng, end: LatLng, travelMode: Trav
       + corridor * 10
       + index;
 
-    const jitter = (pseudoRandom(seed) - 0.5) * corridorStrength * 0.25;
-    const bend = (pseudoRandom(seed + 21) - 0.5) * corridorStrength * 0.2;
+    const jitter = (pseudoRandom(seed) - 0.5) * corridorStrength * JITTER_STRENGTH;
+    const bend = (pseudoRandom(seed + 21) - 0.5) * corridorStrength * BEND_STRENGTH;
 
     const offset = corridor * corridorStrength;
 
     const firstWaypoint: LatLng = {
-      lat: start.lat + deltaLat * firstFraction + perpendicularLat * (offset + jitter) + unitLat * bend,
-      lng: start.lng + deltaLng * firstFraction + perpendicularLng * (offset + jitter) + unitLng * bend,
+      lat: start.lat + deltaLat * CORRIDOR_FIRST_FRACTION + perpendicularLat * (offset + jitter) + unitLat * bend,
+      lng: start.lng + deltaLng * CORRIDOR_FIRST_FRACTION + perpendicularLng * (offset + jitter) + unitLng * bend,
     };
 
     const secondWaypoint: LatLng = {
-      lat: start.lat + deltaLat * secondFraction + perpendicularLat * (offset - jitter) - unitLat * bend,
-      lng: start.lng + deltaLng * secondFraction + perpendicularLng * (offset - jitter) - unitLng * bend,
+      lat: start.lat + deltaLat * CORRIDOR_SECOND_FRACTION + perpendicularLat * (offset - jitter) - unitLat * bend,
+      lng: start.lng + deltaLng * CORRIDOR_SECOND_FRACTION + perpendicularLng * (offset - jitter) - unitLng * bend,
     };
 
     return {
@@ -161,9 +217,9 @@ const resolveAirQualitySource = (samples: AirQualityData[]): RouteAirQualitySour
 };
 
 const computeHealthScore = (avgPM25: number, distanceNorm: number, durationNorm: number): number => {
-  const pmPenalty = Math.min(75, avgPM25 * 0.8);
-  const distancePenalty = (distanceNorm - 1) * 15;
-  const durationPenalty = (durationNorm - 1) * 10;
+  const pmPenalty = Math.min(PM25_PENALTY_MAX, avgPM25 * PM25_PENALTY_FACTOR);
+  const distancePenalty = (distanceNorm - 1) * DISTANCE_PENALTY_FACTOR;
+  const durationPenalty = (durationNorm - 1) * DURATION_PENALTY_FACTOR;
   const rawScore = 100 - pmPenalty - distancePenalty - durationPenalty;
   return Math.max(0, Math.min(100, Math.round(rawScore)));
 };
@@ -216,7 +272,8 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
       airQualitySource: resolveAirQualitySource(sampledAirQuality),
       safety: calculateRouteSafety(avgPM25),
     };
-  } catch {
+  } catch (error) {
+    console.error(`Route enrichment failed for candidate "${candidate.id}":`, error);
     return null;
   }
 };
@@ -232,7 +289,7 @@ const normalizeCandidateScores = (candidates: Array<{ candidate: RouteCandidate;
     const pmNorm = route.avgPM25 / Math.max(1, minPM25);
 
     const corridorBias = Math.abs(candidate.corridor);
-    const corridorScore = Math.max(0.9, 1.15 - corridorBias * 0.2);
+    const corridorScore = Math.max(CORRIDOR_SCORE_MIN, CORRIDOR_SCORE_BASE - corridorBias * CORRIDOR_SCORE_BIAS);
 
     const score = computeHealthScore(route.avgPM25, distanceNorm, durationNorm);
 
@@ -257,30 +314,54 @@ const rankForRouteType = (
 ): number => {
   if (routeType === 'direct') {
     if (travelMode === 'bike') {
-      return candidate.distanceNorm * 0.62 + candidate.durationNorm * 0.28 + candidate.pmNorm * 0.1;
+      return (
+        candidate.distanceNorm * DIRECT_BIKE_DISTANCE_W
+        + candidate.durationNorm * DIRECT_BIKE_DURATION_W
+        + candidate.pmNorm * DIRECT_BIKE_PM_W
+      );
     }
 
-    return candidate.distanceNorm * 0.42 + candidate.durationNorm * 0.23 + candidate.pmNorm * 0.35;
+    return (
+      candidate.distanceNorm * DIRECT_FOOT_DISTANCE_W
+      + candidate.durationNorm * DIRECT_FOOT_DURATION_W
+      + candidate.pmNorm * DIRECT_FOOT_PM_W
+    );
   }
 
   if (routeType === 'green') {
     if (travelMode === 'bike') {
-      return candidate.pmNorm * 0.5 + candidate.distanceNorm * 0.3 + candidate.durationNorm * 0.2;
+      return (
+        candidate.pmNorm * GREEN_BIKE_PM_W
+        + candidate.distanceNorm * GREEN_BIKE_DISTANCE_W
+        + candidate.durationNorm * GREEN_BIKE_DURATION_W
+      );
     }
 
-    return candidate.pmNorm * 0.72 + candidate.distanceNorm * 0.14 + candidate.durationNorm * 0.14;
+    return (
+      candidate.pmNorm * GREEN_FOOT_PM_W
+      + candidate.distanceNorm * GREEN_FOOT_DISTANCE_W
+      + candidate.durationNorm * GREEN_FOOT_DURATION_W
+    );
   }
 
   const detourFactor = (candidate.distanceNorm + candidate.durationNorm) / 2;
   const scenicTarget = travelMode === 'bike'
-    ? Math.abs(detourFactor - 1.05)
-    : Math.abs(detourFactor - 1.15);
+    ? Math.abs(detourFactor - SCENIC_BIKE_DETOUR_TARGET)
+    : Math.abs(detourFactor - SCENIC_FOOT_DETOUR_TARGET);
 
   if (travelMode === 'bike') {
-    return candidate.pmNorm * 0.45 + scenicTarget * 0.42 + (1 / candidate.corridorScore) * 0.13;
+    return (
+      candidate.pmNorm * SCENIC_BIKE_PM_W
+      + scenicTarget * SCENIC_BIKE_DETOUR_W
+      + (1 / candidate.corridorScore) * SCENIC_BIKE_CORRIDOR_W
+    );
   }
 
-  return candidate.pmNorm * 0.58 + scenicTarget * 0.27 + (1 / candidate.corridorScore) * 0.15;
+  return (
+    candidate.pmNorm * SCENIC_FOOT_PM_W
+    + scenicTarget * SCENIC_FOOT_DETOUR_W
+    + (1 / candidate.corridorScore) * SCENIC_FOOT_CORRIDOR_W
+  );
 };
 
 export const selectRouteVariants = (
