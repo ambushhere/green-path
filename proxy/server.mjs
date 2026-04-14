@@ -127,8 +127,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Rate limiting by client IP
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.socket.remoteAddress ?? 'unknown';
+  // Rate limiting by client IP.
+  // By default use the direct socket address to prevent X-Forwarded-For spoofing.
+  // Set TRUST_PROXY=true only when this server sits behind a known reverse proxy
+  // that reliably sets the X-Forwarded-For header.
+  const trustProxy = process.env.TRUST_PROXY === 'true';
+  const clientIp = trustProxy
+    ? (req.headers['x-forwarded-for']?.split(',').at(-1)?.trim() ?? req.socket.remoteAddress ?? 'unknown')
+    : (req.socket.remoteAddress ?? 'unknown');
   if (isRateLimited(clientIp)) {
     sendJson(res, 429, { error: 'Too many requests. Please slow down.' }, corsHeaders);
     return;
