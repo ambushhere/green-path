@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { Map } from '@/components/Map';
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useRoutePlanner } from '@/hooks/useRoutePlanner';
 
 function PlannerSidebar(props: {
@@ -81,6 +82,7 @@ function App() {
   } = useRoutePlanner();
 
   return (
+    <ErrorBoundary>
     <TooltipProvider>
       <div className="h-dvh flex flex-col bg-gray-50">
         <Toaster position="top-center" />
@@ -222,6 +224,7 @@ function App() {
         </div>
       </div>
     </TooltipProvider>
+    </ErrorBoundary>
   );
 }
 

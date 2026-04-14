@@ -16,6 +16,7 @@ type NominatimReverseResponse = {
 };
 
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const SEARCH_CACHE_MAX_SIZE = 100;
 
 const searchCache = new Map<string, { expiresAt: number; results: SearchLocation[] }>();
 
@@ -36,6 +37,10 @@ const getCachedSearchResults = (query: string): SearchLocation[] | null => {
 
 const cacheSearchResults = (query: string, results: SearchLocation[]) => {
   const key = getSearchCacheKey(query);
+  if (searchCache.size >= SEARCH_CACHE_MAX_SIZE) {
+    const oldestKey = searchCache.keys().next().value;
+    if (oldestKey !== undefined) searchCache.delete(oldestKey);
+  }
   searchCache.set(key, {
     results,
     expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,

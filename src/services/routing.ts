@@ -38,6 +38,7 @@ export type ScoredRouteCandidate = {
 };
 
 const ROUTE_CACHE_TTL_MS = 3 * 60 * 1000;
+const ROUTE_CACHE_MAX_SIZE = 50;
 const routeCache = new Map<string, { expiresAt: number; data: Route[] }>();
 
 const pseudoRandom = (seed: number): number => {
@@ -69,6 +70,10 @@ const getCachedRoutes = (cacheKey: string): Route[] | null => {
 };
 
 const cacheRoutes = (cacheKey: string, routes: Route[]) => {
+  if (routeCache.size >= ROUTE_CACHE_MAX_SIZE) {
+    const oldestKey = routeCache.keys().next().value;
+    if (oldestKey !== undefined) routeCache.delete(oldestKey);
+  }
   routeCache.set(cacheKey, {
     data: routes,
     expiresAt: Date.now() + ROUTE_CACHE_TTL_MS,
@@ -216,7 +221,8 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
       airQualitySource: resolveAirQualitySource(sampledAirQuality),
       safety: calculateRouteSafety(avgPM25),
     };
-  } catch {
+  } catch (error) {
+    console.error(`Route enrichment failed for candidate "${candidate.id}":`, error);
     return null;
   }
 };

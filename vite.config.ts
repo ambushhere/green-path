@@ -1,15 +1,19 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import { inspectAttr } from 'kimi-plugin-inspect-react'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: '/green-path/',
-  plugins: [inspectAttr(), react()],
+  plugins: [
+    ...(mode === 'development'
+      ? [import('kimi-plugin-inspect-react').then((m) => m.inspectAttr())]
+      : []),
+    react(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-});
+}));

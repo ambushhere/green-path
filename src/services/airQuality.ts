@@ -5,7 +5,6 @@ import { apiConfig } from './apiConfig';
 const OPENAQ_API_URL = apiConfig.getBaseUrl('airQuality');
 
 const WAQI_API_URL = apiConfig.getBaseUrl('waqi');
-const WAQI_TOKEN = import.meta.env.VITE_WAQI_TOKEN;
 
 type PollutantMeasurements = {
   pm25: number;
@@ -95,12 +94,10 @@ const fetchOpenAQAirQuality = async (location: LatLng): Promise<AirQualityData |
 };
 
 const fetchWAQIAirQuality = async (location: LatLng): Promise<AirQualityData | null> => {
-  if (!WAQI_TOKEN) return null;
+  // WAQI requests are only supported through the proxy, which injects the token server-side.
+  if (!apiConfig.isProxyEnabled) return null;
 
   const response = await axios.get<WAQIResponse>(`${WAQI_API_URL}/feed/geo:${location.lat};${location.lng}/`, {
-    params: {
-      token: WAQI_TOKEN,
-    },
     timeout: 5000,
   });
 

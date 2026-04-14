@@ -6,6 +6,14 @@ import { reverseGeocode } from '@/services/geocoding';
 
 const DEFAULT_MAP_CENTER: LatLng = { lat: 55.7558, lng: 37.6173 };
 
+const isValidCoordinate = (latlng: LatLng): boolean =>
+  Number.isFinite(latlng.lat)
+  && Number.isFinite(latlng.lng)
+  && latlng.lat >= -90
+  && latlng.lat <= 90
+  && latlng.lng >= -180
+  && latlng.lng <= 180;
+
 const formatCoordinateFallback = (location: LatLng): string =>
   `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
 
@@ -91,6 +99,8 @@ export const useRoutePlanner = () => {
   }, []);
 
   const handleMapClick = useCallback(async (latlng: LatLng) => {
+    if (!isValidCoordinate(latlng)) return;
+
     if (!startPoint) {
       setStartPoint(latlng);
       setMapCenter(latlng);
