@@ -151,14 +151,14 @@ export const getAirQuality = async (location: LatLng): Promise<AirQualityData> =
     const openAQData = await fetchOpenAQAirQuality(location);
     if (openAQData) return openAQData;
   } catch {
-    console.warn('OpenAQ fetch failed, trying WAQI source.');
+    console.debug('OpenAQ fetch failed, trying WAQI source.');
   }
 
   try {
     const waqiData = await fetchWAQIAirQuality(location);
     if (waqiData) return waqiData;
   } catch {
-    console.warn('WAQI fetch failed, using mock air quality values.');
+    console.debug('WAQI fetch failed, using mock air quality values.');
   }
 
   return getMockAirQuality(location);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Menu, X } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from 'sonner';
@@ -8,7 +8,7 @@ import { TopBar } from '@/components/TopBar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useRoutePlanner } from '@/hooks/useRoutePlanner';
 
-function PlannerSidebar(props: {
+const PlannerSidebar = memo(function PlannerSidebar(props: {
   startAddress: string;
   endAddress: string;
   startPoint: { lat: number; lng: number } | null;
@@ -50,7 +50,7 @@ function PlannerSidebar(props: {
       onTravelModeChange={props.onTravelModeChange}
     />
   );
-}
+});
 
 function App() {
   const [showAirQuality, setShowAirQuality] = useState(false);

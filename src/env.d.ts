@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_BASE_URL?: string;
   readonly VITE_API_PROXY_BASE_URL?: string;
   readonly VITE_ROUTING_API_BASE_URL?: string;
   readonly VITE_GEOCODING_API_BASE_URL?: string;
