@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Route } from '@/types';
-import { selectRouteVariants, formatDuration, type ScoredRouteCandidate } from './routing';
+import { selectRouteVariants, formatDuration, generateCandidateCorridors, type ScoredRouteCandidate } from './routing';
 
 const makeRoute = (overrides: Partial<Route>): Route => ({
   type: 'direct',
@@ -109,6 +109,31 @@ describe('selectRouteVariants', () => {
     const biking = selectRouteVariants(candidates, 'bike');
 
     expect(walking[0].distance).not.toBe(biking[0].distance);
+  });
+});
+
+describe('generateCandidateCorridors', () => {
+  it('places both waypoints on the same side of the start-end line (no S-curves)', () => {
+    const start = { lat: 55.75, lng: 37.62 };
+    const end = { lat: 55.76, lng: 37.64 };
+    const deltaLat = end.lat - start.lat;
+    const deltaLng = end.lng - start.lng;
+
+    // Cross product sign tells which side of the start→end line a point is on.
+    // cross > 0: left side; cross < 0: right side; 0: on the line.
+    const crossSign = (p: { lat: number; lng: number }) =>
+      Math.sign(deltaLng * (p.lat - start.lat) - deltaLat * (p.lng - start.lng));
+
+    const corridors = generateCandidateCorridors(start, end, 'foot');
+
+    for (const corridor of corridors) {
+      const [, wp1, wp2] = corridor.waypoints;
+      const s1 = crossSign(wp1);
+      const s2 = crossSign(wp2);
+      // Both waypoints must be on the same side (or on the line for the center corridor).
+      const onSameSide = s1 === 0 || s2 === 0 || s1 === s2;
+      expect(onSameSide).toBe(true);
+    }
   });
 });
 
