@@ -134,7 +134,7 @@ const cacheRoutes = (cacheKey: string, routes: Route[]) => {
   });
 };
 
-const generateCandidateCorridors = (start: LatLng, end: LatLng, travelMode: TravelMode): RouteCandidate[] => {
+export const generateCandidateCorridors = (start: LatLng, end: LatLng, travelMode: TravelMode): RouteCandidate[] => {
   const deltaLat = end.lat - start.lat;
   const deltaLng = end.lng - start.lng;
   const vectorLength = Math.hypot(deltaLat, deltaLng) || 0.0001;
@@ -171,8 +171,8 @@ const generateCandidateCorridors = (start: LatLng, end: LatLng, travelMode: Trav
     };
 
     const secondWaypoint: LatLng = {
-      lat: start.lat + deltaLat * CORRIDOR_SECOND_FRACTION + perpendicularLat * (offset - jitter) - unitLat * bend,
-      lng: start.lng + deltaLng * CORRIDOR_SECOND_FRACTION + perpendicularLng * (offset - jitter) - unitLng * bend,
+      lat: start.lat + deltaLat * CORRIDOR_SECOND_FRACTION + perpendicularLat * (offset + jitter) - unitLat * bend,
+      lng: start.lng + deltaLng * CORRIDOR_SECOND_FRACTION + perpendicularLng * (offset + jitter) - unitLng * bend,
     };
 
     return {
