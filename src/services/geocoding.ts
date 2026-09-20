@@ -63,9 +63,6 @@ export const searchLocation = async (query: string): Promise<SearchLocation[]> =
         limit: 5,
         'accept-language': GEOCODING_LANGUAGE,
       },
-      headers: {
-        'User-Agent': 'SafePath/1.0',
-      },
       timeout: 5000,
     });
 
@@ -90,9 +87,6 @@ export const reverseGeocode = async (location: LatLng): Promise<string> => {
         lon: location.lng,
         format: 'json',
         'accept-language': GEOCODING_LANGUAGE,
-      },
-      headers: {
-        'User-Agent': 'SafePath/1.0',
       },
       timeout: 5000,
     });

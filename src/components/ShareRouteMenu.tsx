@@ -37,7 +37,9 @@ export const ShareRouteMenu = ({
   };
 
   const handleGoogleMaps = () => {
-    const url = buildGoogleMapsUrl(startPoint, endPoint, travelMode);
+    // Pass the geometry, not just the endpoints. Without it Google re-plans the
+    // trip its own way and the chosen corridor is lost at the last step.
+    const url = buildGoogleMapsUrl(startPoint, endPoint, travelMode, selectedRoute.points);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -47,42 +49,48 @@ export const ShareRouteMenu = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
-      <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-        <Share2 size={16} />
-        Share Route
+    <section className="rounded-lg bg-white p-4 shadow-md" aria-labelledby="share-heading">
+      <h3 id="share-heading" className="mb-3 flex items-center gap-2 font-semibold text-gray-900">
+        <Share2 size={16} aria-hidden />
+        Take this route with you
       </h3>
       <div className="flex flex-col gap-2">
         <Button
           variant="outline"
-          className="w-full justify-start gap-2"
+          className="h-11 w-full justify-start gap-2"
           onClick={handleCopy}
         >
-          {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
-          {copied ? 'Copied!' : 'Copy route details'}
+          {copied ? <Check size={16} className="text-green-700" aria-hidden /> : <Copy size={16} aria-hidden />}
+          {copied ? 'Copied' : 'Copy route details'}
         </Button>
 
         <Button
           variant="outline"
-          className="w-full justify-start gap-2"
+          className="h-11 w-full justify-start gap-2"
           onClick={handleGoogleMaps}
         >
-          <ExternalLink size={16} />
+          <ExternalLink size={16} aria-hidden />
           Open in Google Maps
         </Button>
 
         <Button
           variant="outline"
-          className="w-full justify-start gap-2"
+          className="h-11 w-full justify-start gap-2"
           onClick={handleAppleMaps}
         >
-          <ExternalLink size={16} />
+          <ExternalLink size={16} aria-hidden />
           Open in Apple Maps
         </Button>
       </div>
-    </div>
+
+      {/* Say plainly which handoff keeps the route and which does not, rather than
+          letting the visitor assume both do. */}
+      <p className="mt-3 text-[11px] leading-relaxed text-gray-600">
+        Google Maps keeps the path Safe Path chose. Apple Maps supports only a start
+        and an end, so it will plan its own way between them.
+      </p>
+    </section>
   );
 };
 
 export default ShareRouteMenu;
-

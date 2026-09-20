@@ -71,6 +71,25 @@
   }
   body {
     @apply bg-background text-foreground;
+    /*
+     * An explicit platform stack, chosen rather than inherited.
+     *
+     * This is an Operate surface: a tool people use outdoors, often one-handed, to
+     * make a decision quickly. The native UI face is the one their eye already reads
+     * fastest and the one that renders correctly at every size on their device, with
+     * no webfont request standing between them and the answer. A distinctive display
+     * face would buy character this surface does not trade in.
+     */
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headings carry a tighter track than body text at every size. */
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
   }
 }
 
@@ -132,10 +151,58 @@
 }
 
 /* Mobile optimizations */
-@media (max-width: 768px) {
-  .leaflet-control-zoom {
-    display: none;
+@media (max-width: 1023px) {
+  /*
+   * Zoom stays available on touch.
+   *
+   * Hiding it left pinch as the only way to aim a tap, which needs two hands on a
+   * device this app expects to be used one-handed while standing. The controls are
+   * lifted clear of the bottom sheet and the locate button instead.
+   */
+  /*
+   * Outranks Leaflet's own `.leaflet-touch .leaflet-bar a`, which pins these to
+   * 30px. That rule is equally specific and loads after this file, so the class on
+   * the anchor is added here to win on specificity rather than on order.
+   */
+  .leaflet-touch .leaflet-control-zoom a.leaflet-control-zoom-in,
+  .leaflet-touch .leaflet-control-zoom a.leaflet-control-zoom-out,
+  .leaflet-control-zoom a.leaflet-control-zoom-in,
+  .leaflet-control-zoom a.leaflet-control-zoom-out {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    font-size: 22px;
   }
+
+  /* Keep attribution out from under the sheet. */
+  .leaflet-bottom.leaflet-right .leaflet-control-attribution {
+    margin-bottom: 3.5rem;
+  }
+}
+
+/*
+ * Browser surfaces the app did not draw but still owns. Left at their defaults
+ * these belong to no design system and are the cheapest tell that a page was
+ * assembled rather than built.
+ */
+::selection {
+  background-color: #bbf7d0;
+  color: #14532d;
+}
+
+:where(input, textarea) {
+  caret-color: #15803d;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Numbers that sit in comparable columns must not shift width per digit. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* iOS Safari safe area insets */

@@ -15,3 +15,6 @@ dist/
 
 .vite/
 coverage/
+
+# Claude Code local config
+.claude/
