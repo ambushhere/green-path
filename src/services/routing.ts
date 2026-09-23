@@ -200,6 +200,59 @@ const fetchOSRMRoute = async (points: LatLng[], mode: TravelMode): Promise<OSRMR
   return response.data;
 };
 
+const EARTH_RADIUS_M = 6371000;
+
+const haversineMeters = (a: LatLng, b: LatLng): number => {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+};
+
+export const measurePathMeters = (points: LatLng[]): number => {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    total += haversineMeters(points[i - 1], points[i]);
+  }
+  return total;
+};
+
+// ~1 m grid: OSRM emits identical node coordinates when it retraces a street.
+const pointKey = (point: LatLng): string => `${point.lat.toFixed(5)}:${point.lng.toFixed(5)}`;
+
+/**
+ * Removes out-and-back spurs and closed loops from a routed path.
+ *
+ * Corridor waypoints are synthetic: when one lands in a dead end or inside a block,
+ * OSRM has to reach it and come back, which draws a stub or a lap around the block.
+ * A walking or cycling route never needs to pass the same node twice, so whenever
+ * the path revisits a point, everything since the first visit is cut.
+ */
+export const removeBacktracks = <T extends LatLng>(points: T[]): T[] => {
+  const result: T[] = [];
+  const indexByKey = new Map<string, number>();
+
+  for (const point of points) {
+    const key = pointKey(point);
+    const seenAt = indexByKey.get(key);
+
+    if (seenAt !== undefined) {
+      for (let i = seenAt + 1; i < result.length; i += 1) {
+        indexByKey.delete(pointKey(result[i]));
+      }
+      result.length = seenAt + 1;
+      continue;
+    }
+
+    indexByKey.set(key, result.length);
+    result.push(point);
+  }
+
+  return result;
+};
+
 const sampleRoutePoints = (points: RoutePoint[], targetSamples = 12): RoutePoint[] => {
   if (points.length <= targetSamples) {
     return points;
@@ -239,10 +292,14 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
     const primaryRoute = routeData.routes[0];
     const coordinates: number[][] = primaryRoute.geometry.coordinates;
 
-    const routePoints: RoutePoint[] = coordinates.map((coordinate) => ({
+    const routePoints: RoutePoint[] = removeBacktracks(coordinates.map((coordinate) => ({
       lat: coordinate[1],
       lng: coordinate[0],
-    }));
+    })));
+    if (routePoints.length < 2) return null;
+
+    // OSRM's distance still counts the spurs that were just cut.
+    const distance = Math.min(primaryRoute.distance, measurePathMeters(routePoints));
 
     const sampledPoints = sampleRoutePoints(routePoints, 12);
     const sampledAirQuality = await Promise.all(
@@ -260,12 +317,12 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
       return matchedSample ? { ...point, airQuality: matchedSample } : point;
     });
 
-    const estimatedDuration = estimateTravelDuration(primaryRoute.distance, travelMode);
+    const estimatedDuration = estimateTravelDuration(distance, travelMode);
 
     return {
       type: 'direct',
       points: enrichedPoints,
-      distance: primaryRoute.distance,
+      distance,
       duration: estimatedDuration,
       avgPM25: Math.round(avgPM25 * 10) / 10,
       score: 0,
@@ -413,8 +470,17 @@ export const calculateMultipleRoutes = async (
     }),
   );
 
+  // Once spurs are cut, several corridors often collapse onto the same streets;
+  // offering the same path twice under different names is noise.
+  const seenGeometries = new Set<string>();
   const validCandidates = enrichedCandidates.filter(
-    (candidate): candidate is { candidate: RouteCandidate; route: Route } => candidate !== null,
+    (candidate): candidate is { candidate: RouteCandidate; route: Route } => {
+      if (candidate === null) return false;
+      const signature = candidate.route.points.map(pointKey).join('|');
+      if (seenGeometries.has(signature)) return false;
+      seenGeometries.add(signature);
+      return true;
+    },
   );
 
   if (validCandidates.length === 0) {

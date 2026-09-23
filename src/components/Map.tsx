@@ -315,28 +315,30 @@ export const Map = ({
     airQualityRef.current.clearLayers();
 
     airQualityData.forEach((aq) => {
-      // A synthetic reading must not be drawn as a measurement on the map either.
-      if (aq.source === 'mock') return;
-
       const band = getAirQualityLevel(aq.pm25);
       const radius = 200;
+      // Estimates are still drawn, but with a dashed outline and a labelled popup so
+      // they never read as a station measurement.
+      const isEstimate = aq.source === 'mock';
 
       L.circle([aq.location.lat, aq.location.lng], {
         radius,
         fillColor: band.color,
         // Kept low so overlapping samples do not compound into a darker patch that
         // implies worse air where there is only denser sampling.
-        fillOpacity: 0.18,
+        fillOpacity: isEstimate ? 0.14 : 0.18,
         color: band.color,
-        weight: 1,
-        opacity: 0.5
+        weight: isEstimate ? 1.5 : 1,
+        opacity: 0.6,
+        dashArray: isEstimate ? '4, 4' : undefined,
       }).addTo(airQualityRef.current!)
         .bindPopup(`
           <div style="font-family: system-ui; padding: 8px;">
-            <strong>${band.level}</strong><br/>
+            <strong>${band.level}</strong>${isEstimate ? ' <em>(estimate)</em>' : ''}<br/>
             PM2.5: ${aq.pm25} µg/m³<br/>
             PM10: ${aq.pm10} µg/m³<br/>
             NO₂: ${aq.no2} µg/m³
+            ${isEstimate ? '<br/><small>No live station data here — modelled value.</small>' : ''}
           </div>
         `);
     });
