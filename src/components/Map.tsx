@@ -233,6 +233,8 @@ export const Map = ({
       let color = '#10b981'; // safe - emerald
       if (route.safety === 'moderate') color = '#f59e0b'; // amber
       if (route.safety === 'unsafe') color = '#ef4444'; // red
+      // An unmeasured route gets a neutral colour, not a safety verdict.
+      if (route.airQualitySource === 'mock') color = '#475569'; // slate
 
       const opacity = isSelected ? 0.98 : 0.45;
       const weight = isSelected ? 6 : 4;

@@ -35,8 +35,9 @@ const formatCoordinateFallback = (location: LatLng): string =>
 const pickDefaultRouteIndex = (routes: Route[]): number => {
   if (routes.length === 0) return 0;
 
-  const hasLiveAirQuality = routes.some((route) => route.airQualitySource !== 'mock');
-  if (!hasLiveAirQuality) return 0;
+  // Comparing a measured route against an unmeasured one is not a comparison.
+  const isEveryRouteMeasured = routes.every((route) => route.airQualitySource !== 'mock');
+  if (!isEveryRouteMeasured) return 0;
 
   return routes.reduce(
     (bestIndex, route, index) => (route.avgPM25 < routes[bestIndex].avgPM25 ? index : bestIndex),

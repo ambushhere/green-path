@@ -306,7 +306,11 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
       sampledPoints.map((point) => getAirQuality({ lat: point.lat, lng: point.lng })),
     );
 
-    const avgPM25 = sampledAirQuality.reduce((total, sample) => total + sample.pm25, 0) / sampledAirQuality.length;
+    // Average only what was measured. Modelled samples are used solely when there is
+    // nothing else, and such a route is flagged 'mock' so its figure is never shown.
+    const measuredSamples = sampledAirQuality.filter((sample) => sample.source === 'live');
+    const pmSamples = measuredSamples.length > 0 ? measuredSamples : sampledAirQuality;
+    const avgPM25 = pmSamples.reduce((total, sample) => total + sample.pm25, 0) / pmSamples.length;
     const sampleLookup = new Map(
       sampledPoints.map((point, index) => [`${point.lat.toFixed(6)}:${point.lng.toFixed(6)}`, sampledAirQuality[index]]),
     );
@@ -335,15 +339,18 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
   }
 };
 
-const normalizeCandidateScores = (candidates: Array<{ candidate: RouteCandidate; route: Route }>): ScoredRouteCandidate[] => {
+export const normalizeCandidateScores = (candidates: Array<{ candidate: RouteCandidate; route: Route }>): ScoredRouteCandidate[] => {
   const minDistance = Math.min(...candidates.map((item) => item.route.distance));
   const minDuration = Math.min(...candidates.map((item) => item.route.duration));
   const minPM25 = Math.min(...candidates.map((item) => item.route.avgPM25));
+  // Pollution may steer the ranking only when every candidate was measured. Otherwise
+  // modelled values would pick the routes while the UI says they were not used.
+  const isPMComparable = candidates.every(({ route }) => route.airQualitySource !== 'mock');
 
   return candidates.map(({ candidate, route }) => {
     const distanceNorm = route.distance / minDistance;
     const durationNorm = route.duration / minDuration;
-    const pmNorm = route.avgPM25 / Math.max(1, minPM25);
+    const pmNorm = isPMComparable ? route.avgPM25 / Math.max(1, minPM25) : 1;
 
     const corridorBias = Math.abs(candidate.corridor);
     const corridorScore = Math.max(CORRIDOR_SCORE_MIN, CORRIDOR_SCORE_BASE - corridorBias * CORRIDOR_SCORE_BIAS);

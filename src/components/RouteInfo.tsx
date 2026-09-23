@@ -109,7 +109,10 @@ export const RouteInfo = ({
     );
   }
 
-  const hasAirData = !isAirQualityUnavailable;
+  // Names like "Green" and the legend claim a pollution comparison, which only holds
+  // when every route was measured. Each card's own figures are gated per route below.
+  const canCompareAir = routes.every((route) => route.airQualitySource !== 'mock');
+  const hasAnyAirData = !isAirQualityUnavailable;
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -171,7 +174,8 @@ export const RouteInfo = ({
         {routes.map((route, index) => {
           const band = getAirQualityLevel(route.avgPM25);
           const isSelected = index === selectedIndex;
-          const routeMeta = getRouteMeta(route.type, hasAirData);
+          const routeMeta = getRouteMeta(route.type, canCompareAir);
+          const hasAirData = route.airQualitySource !== 'mock';
 
           return (
             <li key={`${route.type}-${index}`}>
@@ -215,6 +219,9 @@ export const RouteInfo = ({
 
                 {/* Row 2: the rationale gets its own line instead of fighting the pill. */}
                 <p className="mt-1 text-xs text-gray-600">{routeMeta.note}</p>
+                {!hasAirData && hasAnyAirData && (
+                  <p className="mt-1 text-xs text-amber-900">No air-quality measurement along this route.</p>
+                )}
 
                 {/* Metrics. Fixed columns so distance, time and PM2.5 line up across all
                     three cards, which is the comparison the product exists to enable. */}
@@ -285,7 +292,7 @@ export const RouteInfo = ({
 
       {/* Legend, generated from the same band table the badges read, so the two can
           no longer disagree about a name or a range. */}
-      {hasAirData && (
+      {hasAnyAirData && (
         <div className="px-4 pb-4">
           <h3 className="mb-2 text-xs font-medium text-gray-700">Air quality bands, µg/m³</h3>
           <ul className="flex list-none flex-wrap gap-1.5">

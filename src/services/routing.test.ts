@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Route } from '@/types';
-import { selectRouteVariants, formatDuration, generateCandidateCorridors, removeBacktracks, type ScoredRouteCandidate } from './routing';
+import { selectRouteVariants, formatDuration, generateCandidateCorridors, removeBacktracks, normalizeCandidateScores, type ScoredRouteCandidate } from './routing';
 
 const makeRoute = (overrides: Partial<Route>): Route => ({
   type: 'direct',
@@ -163,5 +163,25 @@ describe('removeBacktracks', () => {
   it('leaves a clean path untouched', () => {
     const path = [p(0, 0), p(0, 0.001), p(0.001, 0.001)];
     expect(removeBacktracks(path)).toEqual(path);
+  });
+});
+
+describe('normalizeCandidateScores', () => {
+  const candidate = (id: string) => ({ id, corridor: 0, waypoints: [] });
+
+  it('ignores modelled pollution when any candidate is unmeasured', () => {
+    const scored = normalizeCandidateScores([
+      { candidate: candidate('a'), route: makeRoute({ avgPM25: 10, airQualitySource: 'live' }) },
+      { candidate: candidate('b'), route: makeRoute({ avgPM25: 90, airQualitySource: 'mock' }) },
+    ]);
+    expect(scored.map((item) => item.pmNorm)).toEqual([1, 1]);
+  });
+
+  it('uses pollution when every candidate is measured', () => {
+    const scored = normalizeCandidateScores([
+      { candidate: candidate('a'), route: makeRoute({ avgPM25: 10, airQualitySource: 'live' }) },
+      { candidate: candidate('b'), route: makeRoute({ avgPM25: 30, airQualitySource: 'mixed' }) },
+    ]);
+    expect(scored.map((item) => item.pmNorm)).toEqual([1, 3]);
   });
 });
