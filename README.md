@@ -6,11 +6,24 @@ Safe Path is a web application for pedestrians and cyclists that helps find the 
 You can check it here - https://ambushhere.github.io/green-path/
 ## Key Features
 
-- **Dual API Integration**: Combines data from WAQI (aqicn.org) and OpenAQ.org for the most comprehensive air quality coverage.
+- **Opens where you are**: the map centres on your city from an IP lookup on first paint, with no permission prompt. A locate control gives a precise position when you ask for it.
 - **Intelligent Routing**: Uses a custom steering algorithm to nudge routes toward low-pollution zones.
-- **Route Comparison**: Visual side-by-side comparison of standard vs. clean routes, including an "AQI Exposure Score" and calculated savings.
+- **Route Comparison**: Three named tradeoffs side by side, each with distance, travel time and measured PM2.5, with the cleanest option selected by default.
 - **Travel Modes**: Specialized routing profiles for both walking and cycling.
-- **Premium UI**: Modern dark theme with a glassmorphism design for a professional and sleek look.
+- **Honest about data**: when no monitoring station reports a measurement, Safe Path says so and withholds the number rather than estimating one. Air-quality readings come from WAQI (aqicn.org), which needs a free token.
+
+## Air-quality data
+
+Safe Path reads WAQI. A token is required, and there are two ways to supply it:
+
+- **Through the proxy, recommended.** Run `npm run proxy` with `WAQI_TOKEN` set, then point `VITE_API_PROXY_BASE_URL` at it. The token stays server-side.
+- **Directly from the browser.** Set `VITE_WAQI_TOKEN`. Simpler for local work, but the token ships inside the bundle.
+
+Get a free token at [aqicn.org/data-platform/token](https://aqicn.org/data-platform/token/).
+
+Without a token the app still plans routes; it ranks them by distance and time and states plainly that no air-quality measurement was available.
+
+> **Note on OpenAQ:** the v2 API this project originally used has been retired and now answers every request with HTTP 410. It is no longer called unless you point `VITE_AIR_QUALITY_API_BASE_URL` at a working deployment. OpenAQ v3 requires its own API key.
 
 ## How to Run
 
@@ -67,8 +80,11 @@ Copy `.env.example` to `.env` and set values as needed.
 - `VITE_GEOCODING_API_BASE_URL` - Optional direct geocoding API override
 - `VITE_AIR_QUALITY_API_BASE_URL` - Optional direct air quality API override
 - `VITE_WAQI_API_BASE_URL` - Optional WAQI base override
-- `VITE_WAQI_TOKEN` - Optional WAQI token for direct browser calls
+- `VITE_WAQI_TOKEN` - WAQI token for direct browser calls (ships in the bundle; prefer the proxy)
+- `VITE_IP_GEOLOCATION_API_BASE_URL` - Optional IP geolocation provider (default `https://ipwho.is`)
 - `VITE_GEOCODING_LANGUAGE` - Preferred geocoding language (default `en`)
+
+IP geolocation deliberately bypasses the proxy. A proxied lookup would resolve the proxy's own address rather than the visitor's.
 
 ### Proxy variables
 

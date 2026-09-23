@@ -200,6 +200,59 @@ const fetchOSRMRoute = async (points: LatLng[], mode: TravelMode): Promise<OSRMR
   return response.data;
 };
 
+const EARTH_RADIUS_M = 6371000;
+
+const haversineMeters = (a: LatLng, b: LatLng): number => {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+};
+
+export const measurePathMeters = (points: LatLng[]): number => {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    total += haversineMeters(points[i - 1], points[i]);
+  }
+  return total;
+};
+
+// ~1 m grid: OSRM emits identical node coordinates when it retraces a street.
+const pointKey = (point: LatLng): string => `${point.lat.toFixed(5)}:${point.lng.toFixed(5)}`;
+
+/**
+ * Removes out-and-back spurs and closed loops from a routed path.
+ *
+ * Corridor waypoints are synthetic: when one lands in a dead end or inside a block,
+ * OSRM has to reach it and come back, which draws a stub or a lap around the block.
+ * A walking or cycling route never needs to pass the same node twice, so whenever
+ * the path revisits a point, everything since the first visit is cut.
+ */
+export const removeBacktracks = <T extends LatLng>(points: T[]): T[] => {
+  const result: T[] = [];
+  const indexByKey = new Map<string, number>();
+
+  for (const point of points) {
+    const key = pointKey(point);
+    const seenAt = indexByKey.get(key);
+
+    if (seenAt !== undefined) {
+      for (let i = seenAt + 1; i < result.length; i += 1) {
+        indexByKey.delete(pointKey(result[i]));
+      }
+      result.length = seenAt + 1;
+      continue;
+    }
+
+    indexByKey.set(key, result.length);
+    result.push(point);
+  }
+
+  return result;
+};
+
 const sampleRoutePoints = (points: RoutePoint[], targetSamples = 12): RoutePoint[] => {
   if (points.length <= targetSamples) {
     return points;
@@ -239,17 +292,25 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
     const primaryRoute = routeData.routes[0];
     const coordinates: number[][] = primaryRoute.geometry.coordinates;
 
-    const routePoints: RoutePoint[] = coordinates.map((coordinate) => ({
+    const routePoints: RoutePoint[] = removeBacktracks(coordinates.map((coordinate) => ({
       lat: coordinate[1],
       lng: coordinate[0],
-    }));
+    })));
+    if (routePoints.length < 2) return null;
+
+    // OSRM's distance still counts the spurs that were just cut.
+    const distance = Math.min(primaryRoute.distance, measurePathMeters(routePoints));
 
     const sampledPoints = sampleRoutePoints(routePoints, 12);
     const sampledAirQuality = await Promise.all(
       sampledPoints.map((point) => getAirQuality({ lat: point.lat, lng: point.lng })),
     );
 
-    const avgPM25 = sampledAirQuality.reduce((total, sample) => total + sample.pm25, 0) / sampledAirQuality.length;
+    // Average only what was measured. Modelled samples are used solely when there is
+    // nothing else, and such a route is flagged 'mock' so its figure is never shown.
+    const measuredSamples = sampledAirQuality.filter((sample) => sample.source === 'live');
+    const pmSamples = measuredSamples.length > 0 ? measuredSamples : sampledAirQuality;
+    const avgPM25 = pmSamples.reduce((total, sample) => total + sample.pm25, 0) / pmSamples.length;
     const sampleLookup = new Map(
       sampledPoints.map((point, index) => [`${point.lat.toFixed(6)}:${point.lng.toFixed(6)}`, sampledAirQuality[index]]),
     );
@@ -260,12 +321,12 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
       return matchedSample ? { ...point, airQuality: matchedSample } : point;
     });
 
-    const estimatedDuration = estimateTravelDuration(primaryRoute.distance, travelMode);
+    const estimatedDuration = estimateTravelDuration(distance, travelMode);
 
     return {
       type: 'direct',
       points: enrichedPoints,
-      distance: primaryRoute.distance,
+      distance,
       duration: estimatedDuration,
       avgPM25: Math.round(avgPM25 * 10) / 10,
       score: 0,
@@ -278,15 +339,18 @@ const enrichCandidateRoute = async (candidate: RouteCandidate, travelMode: Trave
   }
 };
 
-const normalizeCandidateScores = (candidates: Array<{ candidate: RouteCandidate; route: Route }>): ScoredRouteCandidate[] => {
+export const normalizeCandidateScores = (candidates: Array<{ candidate: RouteCandidate; route: Route }>): ScoredRouteCandidate[] => {
   const minDistance = Math.min(...candidates.map((item) => item.route.distance));
   const minDuration = Math.min(...candidates.map((item) => item.route.duration));
   const minPM25 = Math.min(...candidates.map((item) => item.route.avgPM25));
+  // Pollution may steer the ranking only when every candidate was measured. Otherwise
+  // modelled values would pick the routes while the UI says they were not used.
+  const isPMComparable = candidates.every(({ route }) => route.airQualitySource !== 'mock');
 
   return candidates.map(({ candidate, route }) => {
     const distanceNorm = route.distance / minDistance;
     const durationNorm = route.duration / minDuration;
-    const pmNorm = route.avgPM25 / Math.max(1, minPM25);
+    const pmNorm = isPMComparable ? route.avgPM25 / Math.max(1, minPM25) : 1;
 
     const corridorBias = Math.abs(candidate.corridor);
     const corridorScore = Math.max(CORRIDOR_SCORE_MIN, CORRIDOR_SCORE_BASE - corridorBias * CORRIDOR_SCORE_BIAS);
@@ -413,8 +477,17 @@ export const calculateMultipleRoutes = async (
     }),
   );
 
+  // Once spurs are cut, several corridors often collapse onto the same streets;
+  // offering the same path twice under different names is noise.
+  const seenGeometries = new Set<string>();
   const validCandidates = enrichedCandidates.filter(
-    (candidate): candidate is { candidate: RouteCandidate; route: Route } => candidate !== null,
+    (candidate): candidate is { candidate: RouteCandidate; route: Route } => {
+      if (candidate === null) return false;
+      const signature = candidate.route.points.map(pointKey).join('|');
+      if (seenGeometries.has(signature)) return false;
+      seenGeometries.add(signature);
+      return true;
+    },
   );
 
   if (validCandidates.length === 0) {

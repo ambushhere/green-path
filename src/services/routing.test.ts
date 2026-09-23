@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Route } from '@/types';
-import { selectRouteVariants, formatDuration, generateCandidateCorridors, type ScoredRouteCandidate } from './routing';
+import { selectRouteVariants, formatDuration, generateCandidateCorridors, removeBacktracks, normalizeCandidateScores, type ScoredRouteCandidate } from './routing';
 
 const makeRoute = (overrides: Partial<Route>): Route => ({
   type: 'direct',
@@ -144,5 +144,44 @@ describe('formatDuration', () => {
 
   it('formats long durations in hours and minutes', () => {
     expect(formatDuration(90 * 60)).toBe('1 h 30 min');
+  });
+});
+
+describe('removeBacktracks', () => {
+  const p = (lat: number, lng: number) => ({ lat, lng });
+
+  it('cuts an out-and-back spur into a dead end', () => {
+    const path = [p(59.93, 10.73), p(59.931, 10.73), p(59.932, 10.73), p(59.931, 10.73), p(59.931, 10.731)];
+    expect(removeBacktracks(path)).toEqual([p(59.93, 10.73), p(59.931, 10.73), p(59.931, 10.731)]);
+  });
+
+  it('cuts a lap around a block', () => {
+    const path = [p(0, 0), p(0, 0.001), p(0.001, 0.001), p(0.001, 0.002), p(0, 0.002), p(0, 0.001), p(0, 0.003)];
+    expect(removeBacktracks(path)).toEqual([p(0, 0), p(0, 0.001), p(0, 0.003)]);
+  });
+
+  it('leaves a clean path untouched', () => {
+    const path = [p(0, 0), p(0, 0.001), p(0.001, 0.001)];
+    expect(removeBacktracks(path)).toEqual(path);
+  });
+});
+
+describe('normalizeCandidateScores', () => {
+  const candidate = (id: string) => ({ id, corridor: 0, waypoints: [] });
+
+  it('ignores modelled pollution when any candidate is unmeasured', () => {
+    const scored = normalizeCandidateScores([
+      { candidate: candidate('a'), route: makeRoute({ avgPM25: 10, airQualitySource: 'live' }) },
+      { candidate: candidate('b'), route: makeRoute({ avgPM25: 90, airQualitySource: 'mock' }) },
+    ]);
+    expect(scored.map((item) => item.pmNorm)).toEqual([1, 1]);
+  });
+
+  it('uses pollution when every candidate is measured', () => {
+    const scored = normalizeCandidateScores([
+      { candidate: candidate('a'), route: makeRoute({ avgPM25: 10, airQualitySource: 'live' }) },
+      { candidate: candidate('b'), route: makeRoute({ avgPM25: 30, airQualitySource: 'mixed' }) },
+    ]);
+    expect(scored.map((item) => item.pmNorm)).toEqual([1, 3]);
   });
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { Search, MapPin, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { SearchLocation } from '@/types';
@@ -16,7 +16,7 @@ interface LocationSearchProps {
 
 export const LocationSearch = ({
   label,
-  placeholder = 'Enter address...',
+  placeholder = 'Enter an address',
   value,
   onChange,
   onSelect,
@@ -27,6 +27,12 @@ export const LocationSearch = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** -1 means "nothing highlighted"; the typed text stands on its own. */
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const inputId = useId();
+  const listboxId = useId();
+  const statusId = useId();
 
   // Keep a stable ref to the latest onError so the debounced callback never goes stale.
   const onErrorRef = useRef(onError);
@@ -53,6 +59,7 @@ export const LocationSearch = ({
       try {
         const results = await searchLocation(query);
         setSuggestions(results);
+        setActiveIndex(-1);
         setErrorMessage(null);
         onErrorRef.current?.(null);
       } catch (error) {
@@ -82,6 +89,7 @@ export const LocationSearch = ({
     } else {
       setSuggestions([]);
       setErrorMessage(null);
+      setActiveIndex(-1);
       onError?.(null);
     }
   }, [value, debouncedSearch, onError]);
@@ -91,6 +99,7 @@ export const LocationSearch = ({
     onSelect(location);
     setShowSuggestions(false);
     setSuggestions([]);
+    setActiveIndex(-1);
     setErrorMessage(null);
     onError?.(null);
   };
@@ -99,69 +108,163 @@ export const LocationSearch = ({
     onChange('');
     setSuggestions([]);
     setShowSuggestions(false);
+    setActiveIndex(-1);
     setErrorMessage(null);
     onError?.(null);
   };
 
+  const isListOpen = showSuggestions && suggestions.length > 0;
+
+  /**
+   * Keyboard handling for the suggestion list.
+   *
+   * Without this the list is visible but unreachable: arrow keys do nothing and
+   * Enter does nothing, so a keyboard user can see results they cannot pick.
+   */
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+      return;
+    }
+
+    if (!isListOpen) {
+      if (event.key === 'ArrowDown' && suggestions.length > 0) {
+        event.preventDefault();
+        setShowSuggestions(true);
+        setActiveIndex(0);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((current) => (current + 1) % suggestions.length);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setActiveIndex(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(suggestions.length - 1);
+      return;
+    }
+
+    if (event.key === 'Enter' && activeIndex >= 0) {
+      event.preventDefault();
+      handleSelect(suggestions[activeIndex]);
+    }
+  };
+
   return (
     <div className="relative">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label htmlFor={inputId} className="block text-sm font-medium text-gray-800 mb-1">
         {label}
       </label>
       <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden>
           {icon || <Search size={18} />}
         </div>
         <Input
+          id={inputId}
           type="text"
+          role="combobox"
+          aria-expanded={isListOpen}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-describedby={statusId}
+          aria-activedescendant={activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
+          autoComplete="off"
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
             setShowSuggestions(true);
           }}
           onFocus={() => setShowSuggestions(true)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="pl-10 pr-10"
+          className="h-11 pl-10 pr-12 text-base"
         />
         {value && (
           <button
+            type="button"
             onClick={handleClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            aria-label={`Clear ${label.toLowerCase()}`}
+            className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-800"
           >
-            <X size={16} />
+            <X size={16} aria-hidden />
           </button>
         )}
       </div>
+
+      {/* Announce search progress and results without stealing focus. */}
+      <span id={statusId} className="sr-only" role="status">
+        {isLoading
+          ? 'Searching for addresses'
+          : errorMessage
+            ? errorMessage
+            : suggestions.length > 0
+              ? `${suggestions.length} suggestions available. Use the arrow keys to review them.`
+              : ''}
+      </span>
 
       {/* Suggestions dropdown */}
       {showSuggestions && (suggestions.length > 0 || isLoading || errorMessage) && (
         <div className="absolute z-50 w-full mt-1 bg-white rounded-md shadow-lg border border-gray-200 max-h-60 overflow-auto">
           {isLoading ? (
-            <div className="px-4 py-3 text-sm text-gray-500">
-              Searching...
+            <div className="px-4 py-3 text-sm text-gray-600">
+              Searching…
             </div>
           ) : errorMessage ? (
-            <div className="px-4 py-3 text-sm text-red-600">
+            <div className="px-4 py-3 text-sm text-red-700">
               {errorMessage}
             </div>
           ) : (
-            suggestions.map((location, index) => (
-              <button
-                key={index}
-                onClick={() => handleSelect(location)}
-                className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-start gap-2 border-b border-gray-100 last:border-0"
-              >
-                <MapPin size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
-                  <div className="font-medium text-gray-900">
-                    {location.name.split(',')[0]}
-                  </div>
-                  <div className="text-gray-500 text-xs mt-0.5">
-                    {location.name.split(',').slice(1).join(',')}
-                  </div>
-                </div>
-              </button>
-            ))
+            <ul id={listboxId} role="listbox" aria-label={`${label} suggestions`} className="list-none">
+              {suggestions.map((location, index) => {
+                const [primary, ...rest] = location.name.split(',');
+
+                return (
+                  <li
+                    key={`${location.lat},${location.lng},${index}`}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
+                  >
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => handleSelect(location)}
+                      className={`flex w-full items-start gap-2 border-b border-gray-100 px-4 py-3 text-left last:border-0 ${
+                        index === activeIndex ? 'bg-green-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <MapPin size={16} className="text-gray-500 mt-0.5 flex-shrink-0" aria-hidden />
+                      <span className="text-sm min-w-0">
+                        <span className="block font-medium text-gray-900 truncate">
+                          {primary}
+                        </span>
+                        <span className="block text-gray-600 text-xs mt-0.5 truncate">
+                          {rest.join(',').trim()}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}

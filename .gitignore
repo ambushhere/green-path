@@ -15,3 +15,9 @@ dist/
 
 .vite/
 coverage/
+
+# Claude Code local config
+.claude/
+
+# Impeccable transient live-overlay server state
+.impeccable/live/
