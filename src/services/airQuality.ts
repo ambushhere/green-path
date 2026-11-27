@@ -179,17 +179,22 @@ const getMockAirQuality = (location: LatLng): AirQualityData => {
  * because the alternative is an interface that shows invented numbers silently.
  */
 const describeUnavailability = (providersAttempted: boolean, providersFailed: boolean): string => {
-  if (!providersAttempted) {
-    return 'No air-quality provider is configured. Safe Path reads WAQI, which needs a free '
-      + 'token: set VITE_WAQI_TOKEN for local use, or run `npm run proxy` with WAQI_TOKEN set '
-      + 'and point VITE_API_PROXY_BASE_URL at it to keep the token off the client.';
+  // Visitors get a plain explanation; setup details for developers go to the console.
+  if (import.meta.env.DEV && !providersFailed && !providersAttempted) {
+    console.warn(
+      '[air quality] No provider configured. Set VITE_WAQI_TOKEN for local use, or run '
+      + '`npm run proxy` with WAQI_TOKEN set and point VITE_API_PROXY_BASE_URL at it.',
+    );
+  } else if (import.meta.env.DEV && providersFailed) {
+    console.warn(
+      apiConfig.isProxyEnabled
+        ? '[air quality] Provider did not respond through the proxy. Check WAQI_TOKEN in the proxy environment.'
+        : '[air quality] Provider rejected the request. Check that VITE_WAQI_TOKEN is a valid key.',
+    );
   }
 
-  if (providersFailed) {
-    return apiConfig.isProxyEnabled
-      ? 'The air-quality provider did not respond through the proxy. Check that WAQI_TOKEN is '
-        + 'set in the proxy environment and that the proxy can reach the internet.'
-      : 'The air-quality provider rejected the request. Check that VITE_WAQI_TOKEN holds a valid key.';
+  if (!providersAttempted || providersFailed) {
+    return 'Air quality data is temporarily unavailable. Please try again later.';
   }
 
   return 'No monitoring station reported a recent measurement near this location.';
